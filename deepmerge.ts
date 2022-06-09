@@ -16,6 +16,8 @@ function merge2<T, U>(a: T, b: U): Merge2<T, U> {
   ) as Merge2<T, U>;
 }
 
+// Map assign. - Montana
+
 export type Merge<T extends unknown[]> = {
     0: T[0],
     1: T extends [infer Car, ...infer Cdr] ? Merge2<Car, Merge<Cdr>> : T,
