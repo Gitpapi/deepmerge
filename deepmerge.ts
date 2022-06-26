@@ -27,3 +27,56 @@ export function merge<T extends unknown[]>(...objs: T): Merge<T> {
   if (objs.length < 2) return objs[0];
   return merge2(objs[0], merge(...objs.slice(1)));
 }
+
+function compile(fileNames: string[], options: ts.CompilerOptions): void {
+  const program = ts.createProgram(fileNames, options);
+  const emitResult = program.emit();
+
+  const allDiagnostics = ts
+    .getPreEmitDiagnostics(program)
+    .concat(emitResult.diagnostics);
+
+  allDiagnostics.forEach((diagnostic) => {
+    if (diagnostic.file) {
+      const {line, character} = diagnostic.file.getLineAndCharacterOfPosition(
+        diagnostic.start!
+      );
+      const message = ts.flattenDiagnosticMessageText(
+        diagnostic.messageText,
+        '\n'
+      );
+      console.log(
+        `${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`
+      );
+    } else {
+      console.log(
+        ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+      );
+    }
+  });
+
+  const exitCode = emitResult.emitSkipped ? 1 : 0;
+  console.log(`Process exiting with code '${exitCode}'.`);
+  process.exit(exitCode);
+}
+
+function main(): void {
+  fs.mkdirSync('./dev-out',{recursive:true})
+  cp.execSync('cp -r ./testlib-js ./dev-out/');
+
+  const tscfgFilenames = [
+    '@tsconfig/node14/tsconfig.json',
+    path.join(process.cwd(), 'tsconfig.base.json'),
+    path.join(process.cwd(), 'tsconfig.json'),
+  ];
+  const tscfg = tscfgFilenames.map((fn) => require(fn).compilerOptions);
+  const compilerOptions: ts.CompilerOptions = dm.deepMerge(
+    dm.deepMergeInnerDedupeArrays,
+    ...tscfg
+  );
+
+  if (compilerOptions.lib && compilerOptions.lib.length)
+    compilerOptions.lib = compilerOptions.lib.map((s) => 'lib.' + s + '.d.ts');
+  console.log(JSON.stringify(compilerOptions, null, 2));
+  compile(process.argv.slice(2), compilerOptions);
+}
